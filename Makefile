@@ -25,3 +25,4 @@ loops2:   $(OBJ)
 #
 clean:
 	rm *.o
+	rm loops2

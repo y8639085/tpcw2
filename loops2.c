@@ -1,14 +1,12 @@
 #include <stdio.h>
 #include <math.h>
 
-
 #define N 729
 #define reps 1000 
 #include <omp.h> 
 
 double a[N][N], b[N][N], c[N];
-int jmax[N];  
-
+int jmax[N];
 
 void init1(void);
 void init2(void);
@@ -17,42 +15,43 @@ void loop1chunk(int, int);
 void loop2chunk(int, int);
 void valid1(void);
 void valid2(void);
+void fred(int niterations, int nthreads);
 
-
-int main(int argc, char *argv[]) { 
+int main(int argc, char *argv[]) {
 
   double start1,start2,end1,end2;
   int r;
 
-  init1(); 
+  init1();
 
-  start1 = omp_get_wtime(); 
+  start1 = omp_get_wtime();
 
-  for (r=0; r<reps; r++){ 
+  //  for (r=0; r<reps; r++){
     runloop(1);
-  } 
+    // }
 
-  end1  = omp_get_wtime();  
+  end1  = omp_get_wtime();
 
-  valid1(); 
+  valid1();
 
-  printf("Total time for %d reps of loop 1 = %f\n",reps, (float)(end1-start1)); 
+  printf("Total time for %d reps of loop 1 = %f\n",reps, (float)(end1-start1));
 
 
-  init2(); 
+  /*
+  init2();
 
-  start2 = omp_get_wtime(); 
+  start2 = omp_get_wtime();
 
-  for (r=0; r<reps; r++){ 
+  for (r=0; r<reps; r++){
     runloop(2);
-  } 
+  }
 
-  end2  = omp_get_wtime(); 
+  end2  = omp_get_wtime();
 
-  valid2(); 
+  valid2();
 
-  printf("Total time for %d reps of loop 2 = %f\n",reps, (float)(end2-start2)); 
-
+  printf("Total time for %d reps of loop 2 = %f\n",reps, (float)(end2-start2));
+  */
 } 
 
 void init1(void){
@@ -64,77 +63,91 @@ void init1(void){
       b[i][j] = 3.142*(i+j); 
     }
   }
-
 }
 
 void init2(void){ 
-  int i,j, expr; 
+  int i,j, expr;
 
-  for (i=0; i<N; i++){ 
-    expr =  i%( 3*(i/30) + 1); 
-    if ( expr == 0) { 
+  for (i=0; i<N; i++){
+    expr =  i%( 3*(i/30) + 1);  // i=0, 0  i=1, 1.1 i=2, 1.2
+
+    if (expr == 0) {  // 给jmax赋值1/729
       jmax[i] = N;
     }
     else {
-      jmax[i] = 1; 
+      jmax[i] = 1;
     }
-    c[i] = 0.0;
+    c[i] = 0.0;     // 给c赋值0
   }
 
-  for (i=0; i<N; i++){ 
-    for (j=0; j<N; j++){ 
-      b[i][j] = (double) (i*j+1) / (double) (N*N); 
+  for (i=0; i<N; i++){
+    for (j=0; j<N; j++){
+      b[i][j] = (double) (i*j+1) / (double) (N*N);  // 给b重新赋值
     }
   }
- 
-} 
+}
 
+void fred(int niterations, int nthreads) {
+  int localset = reps / nthreads;
+  printf("thread ID %d \n", omp_get_thread_num());
+}
 
 void runloop(int loopid)  {
 
-#pragma omp parallel default(none) shared(loopid) 
+#pragma omp parallel num_threads(4) default(none) shared(loopid)
   {
-    int myid  = omp_get_thread_num();
-    int nthreads = omp_get_num_threads(); 
-    int ipt = (int) ceil((double)N/(double)nthreads); 
-    int lo = myid*ipt;
-    int hi = (myid+1)*ipt;
-    if (hi > N) hi = N; 
-  
-    switch (loopid) { 
-       case 1: loop1chunk(lo,hi); break;
-       case 2: loop2chunk(lo,hi); break;
-    } 
+    int myid  = omp_get_thread_num();  // 线程号 0 1 2 3
+    int nthreads = omp_get_num_threads();  // 总共的线程数=4
+    int ipt = (int) ceil((double)N/(double)nthreads); // 729 / 4 = 183  假如10个进程，729 / 10 = 73
+
+    int lo = myid*ipt;      // 0 183 366 549          // 0 73 146 219 292 365 438 511 584 657
+    int hi = (myid+1)*ipt;  // 183 366 549 732        // 73 146 219 292 365 438 511 584 657 730
+    if (hi > N) hi = N;  // 183 366 549 729
+
+    int chunksize;
+
+    while(ipt>0) {
+      chunksize = (int)ceil((double)ipt/(double)nthreads);
+
+      hi = lo + chunksize;
+
+      switch (loopid) {
+        case 1: loop1chunk(lo,hi); break;
+        case 2: loop2chunk(lo,hi); break;
+      }
+      ipt -= chunksize;
+      printf("this is thread %d, ipt is %d\n", myid, ipt);
+
+
+
+
+    }
   }
 }
 
 void loop1chunk(int lo, int hi) { 
   int i,j; 
-  
-  for (i=lo; i<hi; i++){ 
-    for (j=N-1; j>i; j--){
+
+  for (i=lo; i<hi; i++){    // i = 0 183 366 549; i < 183 366 549 729
+    for (j=N-1; j>i; j--){  // j = 728; j 728 727, ..., 545(取值)     j = 728; j 728, 727, ..., 0
       a[i][j] += cos(b[i][j]);
     } 
   }
-
-} 
-
-
+}
 
 void loop2chunk(int lo, int hi) {
-  int i,j,k; 
-  double rN2; 
+  int i,j,k;
+  double rN2;
 
-  rN2 = 1.0 / (double) (N*N);  
+  rN2 = 1.0 / (double) (N*N);  // 0.00000188167
 
-  for (i=lo; i<hi; i++){ 
-    for (j=0; j < jmax[i]; j++){
-      for (k=0; k<j; k++){ 
+  for (i=lo; i<hi; i++){
+    for (j=0; j<jmax[i]; j++){
+      for (k=0; k<j; k++){
 	c[i] += (k+1) * log (b[i][j]) * rN2;
       } 
     }
   }
-
 }
 
 void valid1(void) { 
@@ -148,9 +161,7 @@ void valid1(void) {
     }
   }
   printf("Loop 1 check: Sum of a is %lf\n", suma);
-
-} 
-
+}
 
 void valid2(void) { 
   int i; 
@@ -161,5 +172,4 @@ void valid2(void) {
     sumc += c[i];
   }
   printf("Loop 2 check: Sum of c is %f\n", sumc);
-} 
- 
+}
