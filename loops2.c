@@ -26,9 +26,9 @@ int main(int argc, char *argv[]) {
 
   start1 = omp_get_wtime();
 
-  //  for (r=0; r<reps; r++){
-  runloop(1);
-  // }
+  for (r=0; r<reps; r++){
+    runloop(1);
+  }
 
   end1  = omp_get_wtime();
 
@@ -37,13 +37,13 @@ int main(int argc, char *argv[]) {
   printf("Total time for %d reps of loop 1 = %f\n",reps, (float)(end1-start1));
 
 
-  /*
+
     init2();
 
     start2 = omp_get_wtime();
 
     for (r=0; r<reps; r++){
-    runloop(2);
+      runloop(2);
     }
 
     end2  = omp_get_wtime();
@@ -51,7 +51,7 @@ int main(int argc, char *argv[]) {
     valid2();
 
     printf("Total time for %d reps of loop 2 = %f\n",reps, (float)(end2-start2));
-  */
+
 } 
 
 void init1(void){
@@ -91,36 +91,47 @@ void runloop(int loopid)  {
     
   int *ipt;
 
-#pragma omp parallel num_threads(4) default(none) shared(loopid, ipt)
+#pragma omp parallel num_threads(8) default(none) shared(loopid, ipt)
   {
     int myid  = omp_get_thread_num();
-    int nthreads = omp_get_num_threads();  // 总共的线程数=4
+    int nthreads = omp_get_num_threads();
 #pragma omp single
   {
     ipt = (int*)malloc(sizeof(int)*nthreads);
   }
     ipt[myid] = (int) ceil((double)N/(double)nthreads); // 729 / 4 = 183  假如10个进程，729 / 10 = 73
 
-    int lo = myid*ipt[myid];      // 0 183 366 549          // 0 73 146 219 292 365 438 511 584 657
-    int hi = (myid+1)*ipt[myid];  // 183 366 549 732        // 73 146 219 292 365 438 511 584 657 730
-    if (hi > N) hi = N;  // 183 366 549 729
-
-    printf("lo on thread %d is %d\n", myid, lo);
-    printf("hi on thread %d is %d\n", myid, hi);
-
     int chunksize;
+    int lo, hi;
+
+    lo = myid*ipt[myid];
+    hi = (myid+1)*ipt[myid];
+    if (hi > N) hi = N;
 
     while(ipt[myid]>0) {
       chunksize = (int)ceil((double)ipt[myid]/(double)nthreads);
 
-      hi = lo + chunksize;
+      hi = lo + chunksize;  // 183 366 549 732        // 73 146 219 292 365 438 511 584 657 730
+      if (hi > N) hi = N;  // 183 366 549 729
+
+      //      printf("lo on thread %d is %d\n", myid, lo);
+      //      printf("hi on thread %d is %d\n", myid, hi);
+
+
+
+
+
+
+
+
 
       switch (loopid) {
         case 1: loop1chunk(lo,hi); break;
         case 2: loop2chunk(lo,hi); break;
       }
       ipt[myid] -= chunksize;
-      printf("this is thread %d, ipt is %d\n", myid, ipt[myid]);
+      lo += chunksize;
+      //      printf("this is thread %d, ipt is %d\n", myid, ipt[myid]);
     }
   }
 }
