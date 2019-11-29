@@ -107,8 +107,8 @@ void runloop(int loopid)  {
   hi[myid] = (myid+1)*ipt[myid];
   if (hi[myid] > N) hi[myid] = N;
 
-  int lo_exec = 0;     // temporary value
-  int hi_exec = 0;     // temporary value
+  int lo_next = 0;     // temporary value
+  int hi_next = 0;     // temporary value
   int next_thread = 0; // loop condition, represents which thread will be executed next
   int chunksize = 0;   // chunksize
   int remaining = 0;   // remaining iterations in a thread
@@ -124,8 +124,8 @@ void runloop(int loopid)  {
   while(next_thread != -1) {
 
     switch (loopid) {
-      case 1: loop1chunk(lo_exec,hi_exec); break;
-      case 2: loop2chunk(lo_exec,hi_exec); break;
+      case 1: loop1chunk(lo_next,hi_next); break;
+      case 2: loop2chunk(lo_next,hi_next); break;
     }
 #pragma omp critical
   {
@@ -133,11 +133,10 @@ void runloop(int loopid)  {
     if (hi[myid] - lo[myid] > 0) {
       next_thread = myid;
 
-      remaining = hi[next_thread]-lo[next_thread]; 
-      chunksize = (int)ceil((double)remaining/(double)nthreads);
+      chunksize = (int)ceil((double)(hi[next_thread]-lo[next_thread])/(double)nthreads);
 
-      lo_exec = lo[next_thread];
-      hi_exec = lo_exec + chunksize;
+      lo_next = lo[next_thread];
+      hi_next = lo_next + chunksize;
       lo[next_thread] = lo[next_thread] + chunksize;
     }
     /* There is no remaining in local set, finding in other threads */
@@ -148,24 +147,23 @@ void runloop(int loopid)  {
       int i;
       /* search thread with the most iterations */
       for (i=0; i<nthreads; i++) {
-	if (myid == i)
-	  continue;
-	if (hi[i] - lo[i] > max) {
-	  max = hi[i] - lo[i];  // max iterations
-	  maxthread = i;  // thread index
-	}
+        if (myid == i)
+          continue;
+        if (hi[i] - lo[i] > max) {
+          max = hi[i] - lo[i];  // max iterations
+          maxthread = i;  // thread index
+        }
       }
       next_thread = maxthread;
       if (next_thread != -1) {
-	int remaining = hi[next_thread]-lo[next_thread];  
-	chunksize = (int)ceil((double)remaining/(double)nthreads);
+        chunksize = (int)ceil((double)(hi[next_thread]-lo[next_thread])/(double)nthreads);  
 
-	lo_exec = lo[next_thread];
-	hi_exec = lo_exec + chunksize;
-	lo[next_thread] = lo[next_thread] + chunksize;
+        lo_next = lo[next_thread];
+        hi_next = lo_next + chunksize;
+        lo[next_thread] = lo[next_thread] + chunksize;
       }
     }
-  } // critical
+    } // critical
   } // while
   } // parallel
   free(ipt);
